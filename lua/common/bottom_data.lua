@@ -4,7 +4,8 @@
 -- Time: 22:51
 -- 
 --
-local redis_i = require "resty/redis_iresty"
+local ngx = ngx
+local redis_i = require "resty/redis-util"
 local redis = redis_i:new()
 local bottom_dict = ngx.shared.bottom
 local _M = {}

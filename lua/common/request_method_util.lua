@@ -4,7 +4,7 @@
 -- Time: 19:38
 -- 
 --
-
+local ngx = ngx
 local _M = {}
 
 function _M.get_request_method(request_method_str)
