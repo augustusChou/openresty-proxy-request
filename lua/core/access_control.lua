@@ -29,5 +29,4 @@ if  request_headers_filter.headers_check_fail(headers) then
     ngx.exit(ngx.HTTP_FORBIDDEN)
 end
 
-ngx.log(ngx.ERR, "远程ip:" .. remote_ip .. " 接口地址:" .. document_uri)
 call_baking.save_call_record(document_uri, remote_ip)
