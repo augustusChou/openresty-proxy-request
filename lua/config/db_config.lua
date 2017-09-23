@@ -19,7 +19,7 @@ local function load_remote_config(config_name)
     local res, err = httpc:request_uri(server_address .. "/api-gateway-manage/redisConfig/queryRedisListByName?redisName=" .. config_name)
 
     if res == nil or 200 ~= res.status then
-        ngx.log(ngx.ERR, "connect api-gateway-manage fail ", err)
+        ngx.log(ngx.ERR, "连接到后端服务失败 " .. server_address, err)
         return nil
     end
 
@@ -27,8 +27,12 @@ local function load_remote_config(config_name)
     local result = json.decode(res.body)
     for i = 1, #result.data do
         local info = result.data[i]
-        table.insert(session_redis, { version_num = info.recId, ip = info.redisIp,
-            port = info.redisPort, password = info.redisPasswd })
+        table.insert(session_redis, {
+            version_num = info.recId,
+            ip = info.redisIp,
+            port = info.redisPort,
+            password = info.redisPasswd
+        })
     end
 
     return session_redis
@@ -65,7 +69,7 @@ function _M.get_deny_ip_config()
     httpc:set_timeout(2000)
     local res, err = httpc:request_uri(server_address .. "/api-gateway-manage/denyIp/getDenyIpConfig")
     if res == nil or 200 ~= res.status then
-        ngx.log(ngx.ERR, "connect api-gateway-manage fail ", err)
+        ngx.log(ngx.ERR, "连接到后端服务失败 " .. server_address, err)
         return nil
     end
     local result = json.decode(res.body)
@@ -77,6 +81,20 @@ function _M.get_deny_ip_config()
     }
     return deny_ip_conf
 end
+
+
+function _M.get_balancer_config()
+    local balancer_conf
+    local httpc = http.new()
+    httpc:set_timeout(2000)
+    local res, err = httpc:request_uri(server_address .. "/api-gateway-manage/balancer/getBalancerList")
+    if res == nil or 200 ~= res.status then
+        ngx.log(ngx.ERR, "连接到后端服务失败 " .. server_address, err)
+        return nil
+    end
+    return res.body
+end
+
 
 return _M
 

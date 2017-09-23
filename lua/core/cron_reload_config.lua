@@ -21,6 +21,7 @@ cron_fun = function(premature)
 
     local data_redis_config = remote_config.get_data_redis_config()
     local deny_ip_config = remote_config.get_deny_ip_config()
+    local balancer_config = remote_config.get_balancer_config()
     if not data_redis_config or not deny_ip_config then
         ngx.exit(ngx.HTTP_SERVICE_UNAVAILABLE)
     end
@@ -31,30 +32,33 @@ cron_fun = function(premature)
         old_deny_conf_version = -1
     end
 
-    if new_deny_conf_version > old_deny_conf_version then
-        bottom_dict:set("deny_conf_version", new_deny_conf_version)
-        bottom_dict:set("unit_time", deny_ip_config.unit_time)
-        bottom_dict:set("max_call", deny_ip_config.max_call)
-        bottom_dict:set("deny_time", deny_ip_config.deny_time)
-        log(ERR,
-            "装载新配置 版本号:" .. deny_ip_config.version_num ..
-                    "单位时间:" .. deny_ip_config.unit_time ..
-                    "最大访问:" .. deny_ip_config.max_call ..
-                    "延迟时间:" .. deny_ip_config.deny_time)
-    end
+    bottom_dict:set("deny_conf_version", new_deny_conf_version)
+    bottom_dict:set("unit_time", deny_ip_config.unit_time)
+    bottom_dict:set("max_call", deny_ip_config.max_call)
+    bottom_dict:set("deny_time", deny_ip_config.deny_time)
+    log(ERR,
+        "装载新配置 版本号:" .. deny_ip_config.version_num ..
+                "单位时间:" .. deny_ip_config.unit_time ..
+                "最大访问:" .. deny_ip_config.max_call ..
+                "延迟时间:" .. deny_ip_config.deny_time)
 
-    local old_data_redis_conf_version = bottom_dict:get("data_redis_conf_version")
-    if not old_data_redis_conf_version then
-        bottom_dict:set("data_redis_ip", data_redis_config[1].ip)
-        bottom_dict:set("data_redis_port", data_redis_config[1].port)
-        local password = data_redis_config[1].password
-        if password ~= nil and string.len(password) > 0 then
-            bottom_dict:set("data_redis_password", password)
-        end
-        bottom_dict:set("data_redis_conf_version", data_redis_config[1].version_num)
-        log(ERR, "数据缓存ip:" .. data_redis_config[1].ip .. "数据缓存端口:" .. data_redis_config[1].port)
-    end
 
+    bottom_dict:set("data_redis_ip", data_redis_config[1].ip)
+    bottom_dict:set("data_redis_port", data_redis_config[1].port)
+    local password = data_redis_config[1].password
+    if password ~= nil and string.len(password) > 0 then
+        bottom_dict:set("data_redis_password", password)
+    end
+    bottom_dict:set("data_redis_conf_version", data_redis_config[1].version_num)
+    log(ERR, "数据缓存ip:" .. data_redis_config[1].ip .. "数据缓存端口:" .. data_redis_config[1].port)
+
+
+    --保存负载均衡数据
+    if balancer_config then
+        --存入返回的字符串，未解析
+        bottom_dict:set("balancer_conf", balancer_config)
+        log(ERR, "负载均衡数据:" .. balancer_config)
+    end
 end
 
 --因为这个定时器会为每一个worker进程启动一个 所以指定workerId为0才执行，这样就只执行一次

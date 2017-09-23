@@ -30,5 +30,17 @@ if string.find(document_uri, "denyIpConf") then
                     " 最大访问:" .. result.maxCall ..
                     " 延迟时间:" .. result.denyTime)
     end
+    return
 end
 
+--处理负载均衡的配置重推
+if string.find(document_uri, "balancerConf") then
+    ngx.req.read_body()
+    local data = ngx.req.get_body_data()
+    if data then
+        --存入返回的字符串，未解析
+        bottom_dict:set("balancer_conf", data)
+        ngx.log(ngx.ERR, "装载新的负载均衡数据:" .. data)
+    end
+    return
+end
