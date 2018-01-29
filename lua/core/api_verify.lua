@@ -7,7 +7,7 @@
 local ngx = ngx
 local redis_i = require "resty/redis-util"
 local redis = redis_i:new({
-    host = "192.168.199.11",
+    host = "192.168.100.4",
     port = 6379,
     password = nil
 })
@@ -20,39 +20,52 @@ local sign = headers['sign']
 local timestamp = headers['timestamp']
 
 if app_key == nil then
-    --ngx.log(ngx.ERR, "app_key 值为nil:")
+    ngx.log(ngx.ERR, "app_key 值为nil:")
     return
 end
 
 if app_key == 'android' or app_key == 'apple' or app_key == 'wechat' or app_key == 'h5' or app_key == 'pc' then
-    --ngx.log(ngx.ERR, "app_key 属于旧版本app :" .. app_key)
+    ngx.log(ngx.ERR, "app_key 属于旧版本app :" .. app_key)
     return
 end
 
---ngx.log(ngx.ERR, "新版app_key值:" .. app_key)
+ngx.log(ngx.ERR, "新版app_key值:" .. app_key)
 
 local body_data = ngx.req.get_body_data()
 
 if body_data == nil then
-    --ngx.log(ngx.ERR, "body 数据 值为nil:")
+    ngx.log(ngx.ERR, "body 数据 值为nil:")
     return
 end
 
-local key, err = redis:eval([[
+local res, err = redis:eval([[
     local app_key = redis.call("hget","APP_SIGN_HEADER",KEYS[1].."key")
     local app_version = redis.call("hget","APP_SIGN_HEADER",KEYS[1].."version")
     local key = redis.call("hget","APP_SIGN_DATA",app_key..app_version.."KEY")
-    return key
+    local res={}
+    table.insert(res,app_key)
+    table.insert(res,app_version)
+    table.insert(res,key)
+    return res
     ]], 1, app_key)
 
-if not key then
-    ngx.log(ngx.ERR, "获取缓存秘钥失败" .. err)
-    ngx.exit(ngx.HTTP_FORBIDDEN)
+if not res then
+    if err ~= nil and "connection refused" == err then
+        ngx.log(ngx.ERR, "redis 服务器连接失败" .. err)
+        return
+    else
+        ngx.log(ngx.ERR, "获取缓存秘钥失败" .. err)
+        ngx.exit(ngx.HTTP_FORBIDDEN)
+    end
 end
+
+local app_key_real = res[1]
+local app_version_real = res[2]
+local key_real = res[3]
 
 local json_data = json.decode(body_data)
 --添加客户端appKey
-json_data['appKey'] = app_key
+json_data['appKey'] = app_key_real
 local param_key_list = {}
 --获取key
 for k in pairs(json_data) do
@@ -61,27 +74,54 @@ end
 
 --排序key
 local function list_sort(a, b)
-    return string.byte(a) < string.byte(b)
+    local a_len = string.len(a)
+    local b_len = string.len(b)
+    local max_len = a_len
+    if b_len > a_len then
+        max_len = b_len
+    end
+
+    for i = 1, max_len do
+        if string.len(a) < i then
+            return true
+        end
+        if string.len(b) < i then
+            return true
+        end
+
+        local a_byte = string.byte(a, i)
+        local b_byte = string.byte(b, i)
+
+        if a_byte == b_byte then
+
+        end
+        if a_byte > b_byte then
+            return false
+        end
+        if a_byte < b_byte then
+            return true
+        end
+    end
 end
+
 table.sort(param_key_list, list_sort)
 
 local res_list = {}
 for i, k in ipairs(param_key_list) do
     local value = json_data[k]
     if value == nil or type(value) == 'table' then
-        table.insert(res_list, k .. "=")
     else
         table.insert(res_list, k .. "=" .. value)
     end
 end
 
-table.insert(res_list, "timestamd5_resmp" .. "=" .. timestamp)
-table.insert(res_list, "key" .. "=" .. key)
+table.insert(res_list, "timestamp" .. "=" .. timestamp)
+table.insert(res_list, "key" .. "=" .. key_real)
 
 local response = table.concat(res_list, "&")
 
 ngx.log(ngx.ERR, "body 数据签名:" .. response)
-ngx.log(ngx.ERR, "秘钥:" .. key)
+ngx.log(ngx.ERR, "秘钥:" .. key_real .. "  appKey:" .. app_key_real .. "  version:" .. app_version_real)
 
 local md5_res = ngx.md5(response)
 ngx.log(ngx.ERR, "md5加密后参数:" .. md5_res)
@@ -90,5 +130,8 @@ if not sign or md5_res ~= sign then
     ngx.log(ngx.ERR, "md5加密后参数与前端加密参数不一致 结束请求")
     ngx.exit(ngx.HTTP_FORBIDDEN)
 end
+
+ngx.req.set_header("app_key", app_key_real)
+ngx.req.set_header("version", app_version_real)
 
 
