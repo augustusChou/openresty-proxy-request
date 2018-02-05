@@ -83,10 +83,18 @@ local function list_sort(a, b)
 
     for i = 1, max_len do
         if string.len(a) < i then
-            return true
+            if a_len > b_len then
+                return false
+            else
+                return true
+            end
         end
         if string.len(b) < i then
-            return true
+            if a_len > b_len then
+                return false
+            else
+                return true
+            end
         end
 
         local a_byte = string.byte(a, i)
