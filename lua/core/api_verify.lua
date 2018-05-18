@@ -7,9 +7,9 @@
 local ngx = ngx
 local redis_i = require "resty/redis-util"
 local redis = redis_i:new({
-    host = "192.168.100.4",
+    host = "192.168.1.109",
     port = 6379,
-    password = nil
+    password = "zdsh123456"
 })
 local json = require("cjson.safe")
 ngx.req.read_body()
@@ -20,23 +20,18 @@ local sign = headers['sign']
 local timestamp = headers['timestamp']
 
 if app_key == nil then
-    ngx.log(ngx.ERR, "app_key 值为nil:")
+    --ngx.log(ngx.ERR, "app_key 值为nil:")
     return
 end
 
 if app_key == 'android' or app_key == 'apple' or app_key == 'wechat' or app_key == 'h5' or app_key == 'pc' then
-    ngx.log(ngx.ERR, "app_key 属于旧版本app :" .. app_key)
+    --ngx.log(ngx.ERR, "app_key 属于旧版本app :" .. app_key)
     return
 end
 
-ngx.log(ngx.ERR, "新版app_key值:" .. app_key)
+--ngx.log(ngx.ERR, "新版app_key值:" .. app_key)
 
 local body_data = ngx.req.get_body_data()
-
-if body_data == nil then
-    ngx.log(ngx.ERR, "body 数据 值为nil:")
-    return
-end
 
 local res, err = redis:eval([[
     local app_key = redis.call("hget","APP_SIGN_HEADER",KEYS[1].."key")
@@ -63,83 +58,94 @@ local app_key_real = res[1]
 local app_version_real = res[2]
 local key_real = res[3]
 
-local json_data = json.decode(body_data)
---添加客户端appKey
-json_data['appKey'] = app_key_real
-local param_key_list = {}
---获取key
-for k in pairs(json_data) do
-    table.insert(param_key_list, k)
-end
-
---排序key
-local function list_sort(a, b)
-    local a_len = string.len(a)
-    local b_len = string.len(b)
-    local max_len = a_len
-    if b_len > a_len then
-        max_len = b_len
-    end
-
-    for i = 1, max_len do
-        if string.len(a) < i then
-            if a_len > b_len then
-                return false
-            else
-                return true
-            end
-        end
-        if string.len(b) < i then
-            if a_len > b_len then
-                return false
-            else
-                return true
-            end
-        end
-
-        local a_byte = string.byte(a, i)
-        local b_byte = string.byte(b, i)
-
-        if a_byte == b_byte then
-
-        end
-        if a_byte > b_byte then
-            return false
-        end
-        if a_byte < b_byte then
-            return true
-        end
-    end
-end
-
-table.sort(param_key_list, list_sort)
-
-local res_list = {}
-for i, k in ipairs(param_key_list) do
-    local value = json_data[k]
-    if value == nil or type(value) == 'table' then
-    else
-        table.insert(res_list, k .. "=" .. value)
-    end
-end
-
-table.insert(res_list, "timestamp" .. "=" .. timestamp)
-table.insert(res_list, "key" .. "=" .. key_real)
-
-local response = table.concat(res_list, "&")
-
-ngx.log(ngx.ERR, "body 数据签名:" .. response)
-ngx.log(ngx.ERR, "秘钥:" .. key_real .. "  appKey:" .. app_key_real .. "  version:" .. app_version_real)
-
-local md5_res = ngx.md5(response)
-ngx.log(ngx.ERR, "md5加密后参数:" .. md5_res)
-
-if not sign or md5_res ~= sign then
-    ngx.log(ngx.ERR, "md5加密后参数与前端加密参数不一致 结束请求")
-    ngx.exit(ngx.HTTP_FORBIDDEN)
-end
-
+--ngx.log(ngx.ERR, "秘钥:" .. key_real .. "  appKey:" .. app_key_real .. "  version:" .. app_version_real)
 ngx.req.set_header("app_key", app_key_real)
 ngx.req.set_header("version", app_version_real)
+
+if app_key_real ~= nil and app_key_real == "android" and headers['user-agent'] == nil then
+    ngx.req.set_header("user-agent", app_key_real)
+end
+
+--
+--if body_data == nil then
+--    --ngx.log(ngx.ERR, "body 数据 值为nil:")
+--    return
+--end
+--
+--local json_data = json.decode(body_data)
+----添加客户端appKey
+--json_data['appKey'] = app_key_real
+--local param_key_list = {}
+----获取key
+--for k in pairs(json_data) do
+--    table.insert(param_key_list, k)
+--end
+--
+----排序key
+--local function list_sort(a, b)
+--    local a_len = string.len(a)
+--    local b_len = string.len(b)
+--    local max_len = a_len
+--    if b_len > a_len then
+--        max_len = b_len
+--    end
+--
+--    for i = 1, max_len do
+--        if string.len(a) < i then
+--            if a_len > b_len then
+--                return false
+--            else
+--                return true
+--            end
+--        end
+--        if string.len(b) < i then
+--            if a_len > b_len then
+--                return false
+--            else
+--                return true
+--            end
+--        end
+--
+--        local a_byte = string.byte(a, i)
+--        local b_byte = string.byte(b, i)
+--
+--        if a_byte == b_byte then
+--
+--        end
+--        if a_byte > b_byte then
+--            return false
+--        end
+--        if a_byte < b_byte then
+--            return true
+--        end
+--    end
+--end
+--
+--table.sort(param_key_list, list_sort)
+--
+--local res_list = {}
+--for i, k in ipairs(param_key_list) do
+--    local value = json_data[k]
+--    if value == nil or type(value) == 'table' then
+--    else
+--        table.insert(res_list, k .. "=" .. value)
+--    end
+--end
+--
+--table.insert(res_list, "timestamp" .. "=" .. timestamp)
+--table.insert(res_list, "key" .. "=" .. key_real)
+--
+--local response = table.concat(res_list, "&")
+--
+----ngx.log(ngx.ERR, "body 数据签名:" .. response)
+--
+--local md5_res = ngx.md5(response)
+----ngx.log(ngx.ERR, "md5加密后参数:" .. md5_res)
+--
+--if not sign or md5_res ~= sign then
+--    ngx.log(ngx.ERR, "md5加密后参数与前端sign不一致 加密排序参数为:" .. response .. " 前端请求参数为:" .. body_data)
+--    ngx.exit(ngx.HTTP_FORBIDDEN)
+--end
+--
 
 
